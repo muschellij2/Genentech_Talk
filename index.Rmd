@@ -104,7 +104,6 @@ demog_tab_by_group = CreateTableOne(
   - 30 subjects with MRI (3T Siemens Trio)
   - Manually segmented by 3 expert raters 
   - Creative-Commons Attribution (CC-BY)
-
   
 ## Demographic Data
 - On many different therapies (9 no therapy)
