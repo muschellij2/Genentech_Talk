@@ -1,0 +1,6 @@
+.Rproj.user
+.Rhistory
+index_cache/
+*.nii.gz
+*.ai
+*.psd
