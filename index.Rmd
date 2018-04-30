@@ -16,6 +16,7 @@ library(knitcitations)
 library(dplyr)
 library(tableone)
 library(broom)
+library(pander)
 cite_options(max.names = 1)
 opts_chunk$set(echo = FALSE, prompt = FALSE, message = FALSE, warning = FALSE, comment = "", results = 'hide')
 ```
@@ -33,6 +34,7 @@ pick_examples = results %>%
   mutate(dice_order = order(dice))
 ind = floor( nrow(pick_examples)/2)
 id = pick_examples[ ind, ]
+id_high = pick_examples[ 3, ]
 overall = readr::read_rds("overall_seg_reslts.rds")
 ```
 
@@ -239,7 +241,34 @@ knitr::kable(tabAsStringMatrix)
 <p style='font-size: 10pt;'></p>
 </div>
 
-## Step 1: Create Predictors for each Sequence <img src="figure/ms_covariates.png" style="width:75%; display: block; margin: auto;" alt="Preds">  
+
+## Step 1: Image Processing
+
+<img src="flow.png" style="width: 75%; display: block; margin: auto;"> 
+
+## Step 1: Image Processing
+
+<div class="container">
+<div id="left_col">
+Figure from Multi-Atlas Skull Stripping method paper [@mass]:
+
+<img src="malf_figure.jpg" style="width: 80%; display: block; margin: auto;">
+</div>
+<div id="right_col">
+- Register templates to an image using the T1 for that subject
+- Apply transformation to the label/mask
+- Average each voxel over all templates
+    - there are "smarter" (e.g. weighted) ways
+</div>
+</div>
+
+## Step 2: Create Predictors for each Sequence <img src="figure/ms_covariates.png" style="width:75%; display: block; margin: auto;" alt="Preds">  
+
+## A package to do all this
+
+- All processing located in `smri.process` package
+
+<img src="figure/processing_code.png" style="width:75%; display: block; margin: auto;" alt="code">
 
 ## Data Structure for One Patient <br/> <img src="figure/ms_voxel_stacking.png" style="width:70%;  display: block; margin: auto;" alt="Vox stack">  
 
@@ -247,7 +276,7 @@ knitr::kable(tabAsStringMatrix)
 
 <div class="container"> 
 <div id="left_col2"> 
-  <h2>Step 2: Aggregate Data</h2>
+  <h2>Step 3: Aggregate Data</h2>
   Training Data Structure
   
   * Stack together `r sum(df$group== "train")` randomly selected patients, stratified by age (over median) and volume
@@ -261,7 +290,7 @@ knitr::kable(tabAsStringMatrix)
 </div>
 
 
-## Step 3: Fit Models / Classifier
+## Step 4: Fit Models / Classifier
 
 Let $y_{i}(v)$ be the presence / absence of lesion for voxel $v$ from person $i$.  
 
@@ -279,59 +308,59 @@ $$
   - With and without the T1-Post for comparison to OASIS
 <div class="centerer">
 \(f(X_{i}(v)) \propto\) <img src="figure/Random_Forest.png" style="width:40%;inline;" alt="RF">
+- Predict on test data
 
-## <img src="figure/varimp.png" style="width:75%;  display: block; margin: auto;" alt="Reseg">
+
+## Assessing Performance 
+For each test scan, and over all voxels, we can calculate the following 2-by-2 table, where the cells represent number of voxels and a corresponding Venn diagram:
+
+<div style="width:45%;float: left;">
+<table class = 'rmdtable' style='font-size: 26px;'>
+<tr class = "header"><td></td><td></td><td colspan="2">Manual</td></tr>
+<tr class = "header"><td></td><td></td><td>0</td><td>1</td></tr>
+<tr><td rowspan="2"> PitCH</td><td>0</td><td style='font-size: 40px;'>TN</td><td style="color:blue">FN</td></tr>
+<tr><td>1</td><td style="color:red">FP</td><td style="color:purple">TP</td></tr>
+</table>
+</div>
+<div style="margin-left:48%;">
+<img src="figure/Venn_Diagram_labeled.png" style="width:80%; display: block; margin: auto;">
+</div>
+
 
 ## Dice Results (Triangle is population Dice) <img src="figure/ranger_dice_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg">
 
-
-## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg">
-
-## OASIS: not so much <img src="figure/Reseg_Volume_Comparison.png" style="width:55%;  display: block; margin: auto;" alt="Reseg">
-
-## Patient with Median Overlap in Test Set
-
-<img src="figure/Reseg_Figure_DSI_Quantile_050_No_DSI.png" style="width:100%;  display: block; margin: auto;" alt="Median"> 
-
-## Patient with Median Overlap in Test Set
-<img src="figure/Reseg_Figure_DSI_Quantile_050_No_DSI.png" style="width:100%;  display: block; margin: auto;" alt="Median"> 
+## <img src="figure/varimp.png" style="width:60%;  display: block; margin: auto;" alt="Reseg">
 
 
-## R Package
+## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
 
-- `smri.process` - on GitHub and Neuroconductor
-  - relies on other Neuroconductor (not CRAN) packages
-  - 
+## OASIS: not so much <img src="figure/volume_results_oasis.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
+
+## Patient with Median DSI (`r round(id$dice, 2)`) in Test
+
+<img src="figure/low_dice.gif" style="width:55%;  display: block; margin: auto;" alt="Median"> 
+
+## Patient with High DSI (`r round(id_high$dice, 2)`) in Test
+<img src="figure/high_dice.gif" style="width:55%;  display: block; margin: auto;" alt="Median"> 
 
 
+## Brain Stem Lesions Estimated
+
+<img src="figure/patient07_ranger_smoothed_phat.png" style="width:55%;  display: block; margin: auto;" alt="Median"> 
 
 
-## Conclusions of Stroke Analyses
+## Conclusions of Lesion Analyses
 
 <div style="font-size: 24pt">
 
-- We can segment ICH volume from CT scans <br><br>
-- We can create population-level ICH distributions <br/><br/>
-- Voxel-wise regression can show regions associated with severity <br/><br/>
-
+- We can segment MS lesions reasonably well <br><br>
+- Better models with larger samples  <br/><br/>
+- Needs to be more accurate for a biomarker <br/><br/>
+    - Location may also be relevant and not taken into account
+- "Black hole" lesions using the T1-post image
+- Gray matter injury estimation
 </div>
 
-
-## Conclusions of Stroke Analyses
-
-<div style="font-size: 24pt">
-
-- We can segment ICH volume from CT scans
-    - **Incorporate variability of estimated volume**
-- We can create population-level ICH distributions
-    - **Uncertainty measures of this**
-- Voxel-wise regression can show regions associated with severity
-    - **Validate these regions (MISTIE III)**
-    - **Scalar on image regression** 
-
-</div>
-
-# Neuroimaging and R
 
 ## Authored R Packages:
 
@@ -412,4 +441,5 @@ datatable(dl, filter = "none", selection = "none", rownames = FALSE,
 
 
 
-# Thank You
+## Thank You
+
