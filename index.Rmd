@@ -301,7 +301,7 @@ $$
 
 ## Models Fit on the Training Data
 
-- OASIS logistic regression with images, and the interaction of the image with a 10mm$^3$ and 20mm$^3$ smoother [@oasis].  Does not include T1Post
+- OASIS logistic regression with images and the interaction of the image with a 10mm$^3$ and 20mm$^3$ smoother [@oasis].  Does not include T1Post, but did include PD originally
   - With the original model from the paper and a re-trained model
 - Logistic Regression: \(f(X_{i}(v)) = \text{expit} \left\{ \beta_0 + \sum_{k= 1}^{p} x_{i, k}(v)\beta_{k}\right\}  \)
 - Random Forests [@ranger], [@breiman2001random]
@@ -395,7 +395,7 @@ For each test scan, and over all voxels, we can calculate the following 2-by-2 t
 
 
 
-## Number of Downloads (CRAN packages, from `cranlogs`)
+## Number of Downloads (from `cranlogs`)
 
 
 ```{r cranlogs, cache = TRUE, eval = TRUE}
