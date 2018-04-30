@@ -1,0 +1,7 @@
+Things to do:
+1) Volume plot - show for RF - done
+2) Put Dice results in there
+3) Get 1 person in test set with very low lesion, other with average, other with high
+4) Conclusions about biomarker
+5) Talk about Brain Stem lesions
+6) Future directions (GM quality, black holes, lesion trajectory)
