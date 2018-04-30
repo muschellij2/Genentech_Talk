@@ -395,9 +395,8 @@ For each test scan, and over all voxels, we can calculate the following 2-by-2 t
 
 
 
-## Number of Downloads (CRAN packages)
+## Number of Downloads (CRAN packages, from `cranlogs`)
 
-From the `cranlogs` R package:
 
 ```{r cranlogs, cache = TRUE, eval = TRUE}
 if (!require(cranlogs)) {
