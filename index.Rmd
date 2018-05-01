@@ -306,6 +306,9 @@ knitr::kable(tabAsStringMatrix)
 </div>
 
 
+## Project Goal <img src="figure/goal.png" style="width:45%;  display: block; margin: auto;" alt="OVERLAY">
+
+
 <!-- The obtained median DSC values were 0.85 and 0.82 for -->
 <!-- intra- and inter-rater variability using manual tools, while -->
 <!-- the respective values obtained with the semi-automated -->
@@ -509,25 +512,6 @@ dev.off()
 <!-- ## Dice Results (Triangle is population Dice) <img src="figure/ranger_dice_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg"> -->
 
 ## Dice Results (Triangle is population Dice) <img src="figure/run_dice_results.png" style="width:100%;  display: block; margin: auto;" alt="Reseg">
-
-## 
-<div class="left-half">
-<img src="figure/varimp.png" style="width:100%;  display: block; margin: auto;" alt="varimp">
-</div>
-<div class="right-half">
-- Top predictors in RF model
-- T1Post not in there 
-- Tissue segmentations are a large predictor
-    - 
-</div>
-
-
-
-
-## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
-
-## OASIS: not so much <img src="figure/volume_results_oasis.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
-
 ## Patient with Median DSI (`r round(id$dice, 2)`) in Test
 
 <!-- <img src="figure/low_dice.gif" style="width:55%;  display: block; margin: auto;" alt="Median">  -->
@@ -550,6 +534,26 @@ dev.off()
 <div class="right-half">
 <img src="figure/patient04_ranger_smoothed_phat.png" style="width:100%;  display: block; margin: auto;" alt="Median">
 </div>
+
+
+## 
+<div class="left-half">
+<img src="figure/varimp.png" style="width:120%;  display: block; margin: auto;" alt="varimp">
+</div>
+<div class="right-half">
+- Top predictors in RF model
+- T1Post not in there 
+- Tissue segmentations are important predictors
+    - FLAIR as well
+</div>
+
+
+
+
+## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
+
+## OASIS: not so much <img src="figure/volume_results_oasis.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
+
 
 
 ## Brain Stem Lesions Estimated
