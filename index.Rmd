@@ -18,7 +18,7 @@ library(tableone)
 library(broom)
 library(ggplot2)
 library(pander)
-run_downloads = FALSE
+run_downloads = TRUE
 cite_options(max.names = 1)
 opts_chunk$set(echo = FALSE, prompt = FALSE, message = FALSE, warning = FALSE, comment = "", results = 'hide')
 ```
@@ -276,6 +276,17 @@ datatable(dl, filter = "none", selection = "none", rownames = FALSE,
 
 # Lesion Segmentation of MS
 
+## Terminology: Neuroimaging to Data/Statistics
+
+<div style="font-size: 26pt">
+* Segmentation ⇔ classification 
+* Image ⇔ 3-dimensional array
+* Mask/Region of Interest ⇔ binary (0/1) image 
+* Registration ⇔  Spatial Normalization/Standarization
+    - "Lining up" Brains
+</div>
+
+
 ## Public Dataset with Lesion Segmentation
 
 * "A novel public MR image dataset of multiple sclerosis patients with lesion segmentations based on multi-rater consensus" [@msdata]
@@ -315,17 +326,6 @@ knitr::kable(tabAsStringMatrix)
 <!-- tools were 0.92 and 0.89. -->
 
 
-
-
-## Terminology: Neuroimaging to Data/Statistics
-
-<div style="font-size: 26pt">
-* Segmentation ⇔ classification 
-* Image ⇔ 3-dimensional array
-* Mask/Region of Interest ⇔ binary (0/1) image 
-* Registration ⇔  Spatial Normalization/Standarization
-    - "Lining up" Brains
-</div>
 
 
 ## Image Representation: voxels (3D pixels)
@@ -433,7 +433,7 @@ $k \in \{T1, T2, FLAIR, PD\}$.
 
 ## Models Fit on the Training Data
 
-- $85$ predictors were generated and put into
+- $85$ predictors were generated 
 - Random Forests [@ranger], [@breiman2001random]
   - With 5 fold cross-validation, default 500 trees, mtry: $\sqrt{p}$
   - With and without the T1-Post for comparison to OASIS
@@ -441,6 +441,7 @@ $k \in \{T1, T2, FLAIR, PD\}$.
 \(f(X_{i}(v)) \propto\) <img src="figure/Random_Forest.png" style="width:40%;inline;" alt="RF">
 
 For each model (RF with and w/o T1Post and OASIS retrained or not)
+
 - Estimate a probability cutoff on training data
 - Predict on test data, assess performance acrosss all voxels in the brain
 
@@ -538,7 +539,7 @@ dev.off()
 
 ## 
 <div class="left-half">
-<img src="figure/varimp.png" style="width:120%;  display: block; margin: auto;" alt="varimp">
+<img src="figure/varimp.png" style="width:110%;  display: block; margin: auto;" alt="varimp">
 </div>
 <div class="right-half">
 - Top predictors in RF model
@@ -584,7 +585,7 @@ dev.off()
 <div style="font-size: 24pt">
 - Run new processing the 131 patients from OASIS paper 
 - Gray matter injury estimation
-- Is EDSS the clinical score we should be relating this to?
+- Is EDSS the clinical score we should be correlating with?
 - "Black hole" lesions using the T1-post image, these may show "active" lesions
 </div>
 
