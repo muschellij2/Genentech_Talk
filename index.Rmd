@@ -16,10 +16,13 @@ library(knitcitations)
 library(dplyr)
 library(tableone)
 library(broom)
+library(ggplot2)
 library(pander)
+run_downloads = FALSE
 cite_options(max.names = 1)
 opts_chunk$set(echo = FALSE, prompt = FALSE, message = FALSE, warning = FALSE, comment = "", results = 'hide')
 ```
+
 
 
 ```{r result, prompt=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
@@ -66,9 +69,11 @@ cs = cs %>%
 
 
 ```{r}
+allvars = c("Age", "sex", "EDSS", "Lesion_Volume", "MS_Subtype")
 ## Create a TableOne object
 demog_tab <- CreateTableOne(
-  vars = c("Age", "sex", "EDSS", "Lesion_Volume", "MS_Subtype"), 
+  vars = allvars, 
+  argsNormal = list(var.equal = FALSE),
   data = cs, factorVars = catVars)
 tabAsStringMatrix <- print(demog_tab, printToggle = FALSE, noSpaces = TRUE)
 tabAsStringMatrix = as.data.frame(tabAsStringMatrix, stringsAsFactors = FALSE)
@@ -76,7 +81,8 @@ tabAsStringMatrix = tibble::rownames_to_column(tabAsStringMatrix, var = "Variabl
 
 demog_tab_by_group = CreateTableOne(
   strata = "group",
-  vars = c(conVars, catVars), 
+  vars = allvars,
+  argsNormal = list(var.equal = FALSE),
   data = cs, factorVars = catVars, test = FALSE)
 ```
 
@@ -171,7 +177,7 @@ Complete pipeline
 
 <img src="figure/imaging_task_view.png" style="width:100%; display: inline; margin: auto;" alt="flow">
   
-## Bioinformatics Repository: Bioconductor<br> <img src="figure/biocview.png" style="width:100%; display: inline; margin: auto;" alt="flow"> 
+
 
 ## Bioinformatics Repository: Bioconductor<br> <img src="figure/bioconductor.png" style="width:65%; display: inline; margin: auto;" alt="flow"> 
 
@@ -180,10 +186,13 @@ Complete pipeline
 - published tutorials and workflows 
 - additional requirements to CRAN (e.g. packages need vignettes)
 
+## Bioinformatics Repository: Bioconductor<br> <img src="figure/biocview.png" style="width:100%; display: inline; margin: auto;" alt="flow"> 
 
 # <img src="figure/neuroconductor_brain_type_bbg.png" style="width:80%; display: inline; margin: auto;" alt="flow"><br> An R Platform for <br> Medical Imaging Analysis <br> [@neuroconductor]
 
 ## https://neuroconductor.org/ <img src="figure/neuroconductor_page.png" style="width:100%; display: inline; margin: auto;" alt="flow"> 
+
+## Tutorials and Workflows <img src="figure/tutorials.png" style="width:100%; display: inline; margin: auto;" alt="flow"> 
 
 
 ## Authored R Packages:
@@ -224,7 +233,7 @@ Complete pipeline
 ## Number of Downloads (from `cranlogs`)
 
 
-```{r cranlogs, cache = TRUE, eval = TRUE}
+```{r cranlogs, cache = TRUE, eval = run_downloads}
 if (!require(cranlogs)) {
   library(devtools)
   install_github("metacran/cranlogs")
@@ -244,7 +253,8 @@ dl = cran_downloads( from = first_date, to = today,
                      packages = packs)
 dl = plyr::ddply(dl, plyr::.(package), summarise, All_Time = sum(count))
 dl = merge(dl, last_week)
-dl = plyr::arrange(dl, plyr::desc(Last_Week))
+dl = plyr::arrange(dl, plyr::desc(All_Time),
+                   plyr::desc(Last_Week))
 colnames(dl) = c("Package", "All Time", "Last Week")
 ```
 
@@ -254,7 +264,7 @@ colnames(dl) = c("Package", "All Time", "Last Week")
 library(DT)
 ```
 
-```{r dt_cranlogs, results = "asis", eval = TRUE, dependson = "cranlogs"}
+```{r dt_cranlogs, results = "asis", eval = run_downloads, dependson = "cranlogs"}
 datatable(dl, filter = "none", selection = "none", rownames = FALSE,
           options = list(dom = 't', autoWidth = TRUE,
                          columnDefs = list(list(
@@ -276,7 +286,7 @@ datatable(dl, filter = "none", selection = "none", rownames = FALSE,
 - All analysis and data located: https://github.com/muschellij2/open_ms_data
   
 ## Demographic Data
-- On many different therapies (9 no therapy), age IQR: `r quantile (cs$Age, probs = 0.25)` - `r quantile (cs$Age, probs = 0.75)`
+- On many different therapies (9 no therapy), age IQR: `r quantile (cs$Age, probs = 0.25)` - `r quantile (cs$Age, probs = 0.75)`, EDSS IQR: `r quantile (cs$EDSS, probs = 0.25, na.rm = TRUE)` - `r quantile (cs$EDSS, probs = 0.75, na.rm = TRUE)`
 
 ```{r, results = "asis"}
 knitr::kable(tabAsStringMatrix)
@@ -326,9 +336,24 @@ knitr::kable(tabAsStringMatrix)
 </div>
 
 
-## Step 1: Image Processing <img src="figure/processing_workflow.png" style="width:30%; display: block; margin: auto;"> 
+## Step 1: Image Processing: Workflow 
+<div class="left-half">
+<img src="figure/processing_workflow.png" style="width:60%; display: block; margin: auto;"> 
+</div>
+<div class="right-half">
+The N4 [@tustison_n4itk_2010] EM-style model assumed is:
+$$
+\log(x(v)) = \log(u(v)) + \log( f(v) )
+$$
 
-## Step 1: Image Processing
+- $x$: given image
+- $u$: uncorrupted image
+- $f$: bias field 
+- $v$: location in the image
+</div>
+
+
+## Step 1: Image Processing: MALF
 
 <div class="container">
 <div id="left_col">
@@ -350,14 +375,15 @@ Figure from Multi-Atlas Skull Stripping method paper [@mass]:
 <img src="figure/ms_covariates.png" style="width:100%; display: block; margin: auto;" alt="Preds">  
 </div> 
 <div id="right_col"> 
-- Quantile images, smoothers, local moments
-- Tissue class probability
+- Predictors created with intensity-normalized data
+  - Quantile images, smoothers, local moments
+- Tissue class probability with local moments: MALF and FAST [@fast]
 - Z-score to a population template 
 </div>
 
-## A package to do all this
+## A package to do all this: `smri.process`
 
-- All processing located in `smri.process` GitHub package (`muschellij2/smri.process`)
+- GitHub package (`muschellij2/smri.process`)
 
 <img src="figure/processing_code.png" style="width:45%; display: block; margin: auto;" alt="code">
 
@@ -366,7 +392,7 @@ Figure from Multi-Atlas Skull Stripping method paper [@mass]:
 ---
 
 <div class="container"> 
-<div id="left_col2"> 
+<div class="left-half"> 
   <h2>Step 3: Aggregate Data</h2>
   Training Data Structure
   
@@ -377,8 +403,8 @@ Figure from Multi-Atlas Skull Stripping method paper [@mass]:
   * Test on `r sum(df$group== "test")` hold out
   
   </div>    
-  <div id="right_col2">
-  <img src="figure/Large_Design_Matrix_small.jpg" style="width:45%;  display: block; margin: auto;" alt="MISTIE LOGO">  
+  <div class="right-half">
+  <img src="figure/Large_Design_Matrix_small.jpg" style="width:55%;  display: block; margin: auto;" alt="MISTIE LOGO">  
   </div> 
 </div>
 
@@ -391,44 +417,111 @@ General model form:
 $$
  P(Y_{i}(v) = 1)  \propto f(X_{i}(v))
 $$
-- Similar thinking in OASIS: logistic regression with images + interaction of the image and a 10mm$^3$ and 20mm$^3$ smoother [@oasis]. 
+<br>
+- Previous work - **OASIS** [@oasis]:
+ 
 $$
-f(X_{i}(v)) = \text{expit} \left\{ \beta_0 + \sum_{k \in \{T1, T2, FLAIR, PD\}} x_{k}(v)\beta_{k} +  x_{k}(v) * x_{10, k} \beta_{10,k} +  x_{k}(v)* x_{20, k} \beta_{20,k}\right\}  
+f(X_{i}(v)) = \text{expit} \left\{ \beta_0 + \sum_{k} x_{k}(v)\beta_{k} +  x_{k}(v) \times x_{10, k} \beta_{10,k} +  x_{k}(v) \times x_{20, k} \beta_{20,k}\right\}  
 $$
-Does not include T1Post, but did include PD originally
-  - With the original model from the paper and a re-trained model
+
+$k \in \{T1, T2, FLAIR, PD\}$. 
+
+- With the original model w/o T1Post and a re-trained model
 
 ## Models Fit on the Training Data
 
-- Logistic Regression: \(f(X_{i}(v)) = \text{expit} \left\{ \beta_0 + \sum_{k= 1}^{p} x_{i, k}(v)\beta_{k}\right\}  \), $p = 85$
+- $85$ predictors were generated and put into
 - Random Forests [@ranger], [@breiman2001random]
   - With 5 fold cross-validation, default 500 trees, mtry: $\sqrt{p}$
   - With and without the T1-Post for comparison to OASIS
 <div class="centerer">
 \(f(X_{i}(v)) \propto\) <img src="figure/Random_Forest.png" style="width:40%;inline;" alt="RF">
+
+For each model (RF with and w/o T1Post and OASIS retrained or not)
 - Estimate a probability cutoff on training data
 - Predict on test data, assess performance acrosss all voxels in the brain
 
 
 ## Assessing Performance 
-For each test scan, and over all test scans, we can calculate the following 2-by-2 table, where the cells represent number of voxels and a corresponding Venn diagram:
+For each test scan, and over all test scans, we can calculate the following 2-by-2 table, where cells represent number of voxels and corresponding Venn diagram:
 
 <div style="width:45%;float: left;">
 <table class = 'rmdtable' style='font-size: 26px;'>
 <tr class = "header"><td></td><td></td><td colspan="2">Manual</td></tr>
 <tr class = "header"><td></td><td></td><td>0</td><td>1</td></tr>
-<tr><td rowspan="2"> PitCH</td><td>0</td><td style='font-size: 40px;'>TN</td><td style="color:blue">FN</td></tr>
+<tr><td rowspan="2"> Auto</td><td>0</td><td style='font-size: 40px;'>TN</td><td style="color:blue">FN</td></tr>
 <tr><td>1</td><td style="color:red">FP</td><td style="color:purple">TP</td></tr>
 </table>
+<br>
+Dice Coeffiicent [@dice_measures_1945]:
+$$
+\text{Dice} = \frac{2\times\text{TP}}{2\times\text{TP} + \text{FN} + {FP}}
+$$
 </div>
 <div style="margin-left:48%;">
 <img src="figure/Venn_Diagram_labeled.png" style="width:80%; display: block; margin: auto;">
 </div>
 
+```{r plotter}
+o = overall %>% 
+  filter(smooth) %>% 
+  mutate(type = ifelse(
+    grepl("ranger", run_model),
+    "Random Forest", 
+    "OASIS")  
+  ) %>% 
+  filter(
+    run_model %in% c("oasis", "oasis_untrained", 
+                     "ranger", "ranger_nopost")) %>% 
+  mutate(
+    run_model = recode(run_model,
+                       oasis = "OASIS Trained",
+                       oasis_untrained = "OASIS",
+                       ranger_nopost = "RF, no T1Post",
+                       ranger = "RF")
+  )  
+transparent_legend =  theme(
+  legend.background = element_rect(
+    fill = "transparent"),
+  legend.key = element_rect(fill = "transparent", 
+                            color = "transparent") )
+g = results %>% 
+    ggplot(aes(x = run_model, 
+      y = dice, colour = type)) + 
+    facet_wrap(~ group) +
+    geom_boxplot() + 
+    theme(text = element_text(size = 20)) + 
+    theme(legend.position = c(0.7, 0.6)) +
+    ylab("Dice Coefficient") + xlab("") +
+    transparent_legend + 
+    guides(colour = guide_legend(title = "Model"))
+gg = g + 
+  geom_point(data = o,
+             position = position_dodge(width = 0.75),
+             shape = 2) +  coord_flip()  
+pngname = file.path("figure/run_dice_results.png")
+png(pngname, height = 5, width = 10, 
+  res = 600, units = "in")
+print(gg)
+dev.off()
+```
 
-## Dice Results (Triangle is population Dice) <img src="figure/ranger_dice_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg">
+<!-- ## Dice Results (Triangle is population Dice) <img src="figure/ranger_dice_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg"> -->
 
-## <img src="figure/varimp.png" style="width:60%;  display: block; margin: auto;" alt="Reseg">
+## Dice Results (Triangle is population Dice) <img src="figure/run_dice_results.png" style="width:100%;  display: block; margin: auto;" alt="Reseg">
+
+## 
+<div class="left-half">
+<img src="figure/varimp.png" style="width:100%;  display: block; margin: auto;" alt="varimp">
+</div>
+<div class="right-half">
+- Top predictors in RF model
+- T1Post not in there 
+- Tissue segmentations are a large predictor
+    - 
+</div>
+
+
 
 
 ## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
