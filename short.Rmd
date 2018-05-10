@@ -1,0 +1,407 @@
+---
+title: 'Robust Lesion Segmentation on MRI of Patients with Multiple Sclerosis'
+author: "John Muschelli, PhD - Johns Hopkins Bloomberg School of Public Health<br/> http://johnmuschelli.com/Genentech_Talk_2018/short.html"
+output:
+  ioslides_presentation:
+    css: custom.css
+    widescreen: yes
+bibliography: refs.bib
+---
+
+
+```{r opts, include = FALSE}
+library(knitr)
+library(knitcitations)
+library(dplyr)
+library(tableone)
+library(broom)
+library(ggplot2)
+library(pander)
+run_downloads = TRUE
+cite_options(max.names = 1)
+opts_chunk$set(echo = FALSE, prompt = FALSE, message = FALSE, warning = FALSE, comment = "", results = 'hide')
+```
+
+
+
+```{r result, prompt=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+results = readr::read_rds("seg_reslts.rds")
+df = results %>% 
+  select(id, group, volume, smooth) %>% 
+  distinct() %>% 
+  arrange(id)
+group_df = df
+pick_examples = results %>% 
+  filter(group == "test", run_model == "RF, no T1Post") %>% 
+  mutate(dice_order = order(dice))
+ind = floor( nrow(pick_examples)/2)
+id = pick_examples[ ind, ]
+id_high = pick_examples[ 3, ]
+overall = readr::read_rds("overall_seg_reslts.rds")
+```
+
+```{r setup, prompt=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+load("cs_demog.rda")
+cs = cs_demog
+cs = cs %>% 
+  mutate(type = recode(ms_type,
+    "CIS" = "Clinically Isolated Syndrome",
+    "RR" = "Relapsing-remitting", 
+    SP = "Secondary-progressive", 
+    PP = "Primary-progressive",
+    PR = "Progressive-relapsing")
+  )
+cs$type[ is.na(cs$type)] = "Unspecified"
+## Vector of variables to summarize
+conVars <- c("Age", "EDSS", "Lesion_Volume")
+## Vector of categorical variables that need transformation
+catVars <- c("sex", "MS_Subtype")
+cs$MS_Subtype = factor(cs$type)
+cs$Sex = factor(cs$sex)
+cs = left_join(cs, df)
+cs = cs %>% 
+  dplyr::rename(EDSS = edss,
+         Age = age,
+         Lesion_Volume = volume)
+```
+
+
+
+```{r}
+allvars = c("Age", "sex", "EDSS", "Lesion_Volume", "MS_Subtype")
+## Create a TableOne object
+demog_tab <- CreateTableOne(
+  vars = allvars, 
+  argsNormal = list(var.equal = FALSE),
+  data = cs, factorVars = catVars)
+tabAsStringMatrix <- print(demog_tab, printToggle = FALSE, noSpaces = TRUE)
+tabAsStringMatrix = as.data.frame(tabAsStringMatrix, stringsAsFactors = FALSE)
+tabAsStringMatrix = tibble::rownames_to_column(tabAsStringMatrix, var = "Variable")
+
+demog_tab_by_group = CreateTableOne(
+  strata = "group",
+  vars = allvars,
+  argsNormal = list(var.equal = FALSE),
+  data = cs, factorVars = catVars, test = FALSE)
+```
+
+
+# Lesion Segmentation of MS
+
+## Terminology: Neuroimaging to Data/Statistics
+
+<div style="font-size: 26pt">
+* Segmentation ⇔ classification 
+* Image ⇔ 3-dimensional array
+* Mask/Region of Interest ⇔ binary (0/1) image 
+* Registration ⇔  Spatial Normalization/Standarization
+    - "Lining up" Brains
+</div>
+
+
+## Public Dataset with Lesion Segmentation
+
+* "A novel public MR image dataset of multiple sclerosis patients with lesion segmentations based on multi-rater consensus" [@msdata]
+  - Data Published at http://lit.fe.uni-lj.si/tools.php?lang=eng
+  - 30 subjects with MRI (3T Siemens Trio)
+- Manually segmented by 3 expert raters 
+- Creative-Commons Attribution (CC-BY)
+- All analysis and data located: https://github.com/muschellij2/open_ms_data
+  
+## Demographic Data
+- On many different therapies (9 no therapy), age IQR: `r quantile (cs$Age, probs = 0.25)` - `r quantile (cs$Age, probs = 0.75)`, EDSS IQR: `r quantile (cs$EDSS, probs = 0.25, na.rm = TRUE)` - `r quantile (cs$EDSS, probs = 0.75, na.rm = TRUE)`
+
+```{r, results = "asis"}
+knitr::kable(tabAsStringMatrix)
+```
+
+
+## Imaging Data
+
+* 2D T1 (TR=2000ms, TE=20ms, TI=800ms) and after gadolinium
+* 2D T2 (TR=6000ms, TE=120ms), 3D FLAIR (TR=5000ms, TE=392ms, TI=1800 ms)
+    - Fluid attenuated inversion recovery - reduce signal of fluids
+- All had flip angle of 120$^{\circ}$
+
+</div>
+<div>
+<img src="figure/overlay.png" style="width:100%;  display: block; margin: auto;" alt="OVERLAY">
+</div>
+
+
+## Project Goal <img src="figure/goal.png" style="width:45%;  display: block; margin: auto;" alt="OVERLAY">
+
+
+<!-- The obtained median DSC values were 0.85 and 0.82 for -->
+<!-- intra- and inter-rater variability using manual tools, while -->
+<!-- the respective values obtained with the semi-automated -->
+<!-- tools were 0.92 and 0.89. -->
+
+
+
+
+## Image Representation: voxels (3D pixels)
+<div id="left_col2"> 
+<img src="figure/Zoom_Ventricle.png" style="width:100%;  display: block; margin: auto;">
+</div>
+</div>    
+<div id="right_col2">
+<img src="figure/movie_final.gif" style="width:80%; display: block; margin: auto;" loop=infinite>
+<p style='font-size: 10pt;'></p>
+</div>
+
+
+## Step 1: Image Processing: Workflow 
+<div class="left-half">
+<img src="figure/processing_workflow.png" style="width:60%; display: block; margin: auto;"> 
+</div>
+<div class="right-half">
+The N4 [@tustison_n4itk_2010] EM-style model assumed is:
+$$
+\log(x(v)) = \log(u(v)) + \log( f(v) )
+$$
+
+- $x$: given image
+- $u$: uncorrupted image
+- $f$: bias field 
+- $v$: location in the image
+</div>
+
+
+## Step 1: Image Processing: MALF
+
+<div class="container">
+<div id="left_col">
+Figure from Multi-Atlas Skull Stripping method paper [@mass]:
+
+<img src="figure/malf_figure.jpg" style="width: 60%; display: block; margin: auto;">
+</div>
+<div id="right_col">
+- Register templates to an image using the T1 for that subject
+- Apply transformation to the label/mask
+- Average each voxel over all templates
+    - there are "smarter" (e.g. weighted) ways
+</div>
+</div>
+
+## Step 2: Create Predictors for each Sequence 
+
+<div id="left_col">
+<img src="figure/ms_covariates.png" style="width:100%; display: block; margin: auto;" alt="Preds">  
+</div> 
+<div id="right_col"> 
+- Predictors created with intensity-normalized data
+  - Quantile images, smoothers, local moments
+- Tissue class probability with local moments: MALF and FAST [@fast]
+- Z-score to a population template 
+</div>
+
+## A package to do all this: `smri.process`
+
+- GitHub package (`muschellij2/smri.process`)
+
+<img src="figure/processing_code.png" style="width:45%; display: block; margin: auto;" alt="code">
+
+## Data Structure for One Patient <br/> <img src="figure/ms_voxel_stacking.png" style="width:70%;  display: block; margin: auto;" alt="Vox stack">  
+
+---
+
+<div class="container"> 
+<div class="left-half"> 
+  <h2>Step 3: Aggregate Data</h2>
+  Training Data Structure
+  
+  * Sample `10%` of the voxels (save computation time)
+  * Stack together `r sum(df$group== "train")` randomly selected patients, stratified by age (over median) and volume
+  * Train model/classifier on this design matrix
+  * Smooth the probability map
+  * Test on `r sum(df$group== "test")` hold out
+  
+  </div>    
+  <div class="right-half">
+  <img src="figure/Large_Design_Matrix_small.jpg" style="width:55%;  display: block; margin: auto;" alt="MISTIE LOGO">  
+  </div> 
+</div>
+
+
+## Step 4: Fit Models / Classifier
+
+Let $y_{i}(v)$ be the presence / absence of lesion for voxel $v$ from person $i$.  
+
+General model form: 
+$$
+ P(Y_{i}(v) = 1)  \propto f(X_{i}(v))
+$$
+<br>
+- Previous work - **OASIS** [@oasis]:
+ 
+$$
+f(X_{i}(v)) = \text{expit} \left\{ \beta_0 + \sum_{k} x_{k}(v)\beta_{k} +  x_{k}(v) \times x_{10, k} \beta_{10,k} +  x_{k}(v) \times x_{20, k} \beta_{20,k}\right\}  
+$$
+
+$k \in \{T1, T2, FLAIR, PD\}$. 
+
+- With the original model w/o T1Post and a re-trained model
+
+## Models Fit on the Training Data
+
+- $85$ predictors were generated 
+- Random Forests [@ranger], [@breiman2001random]
+  - With 5 fold cross-validation, default 500 trees, mtry: $\sqrt{p}$
+  - With and without the T1-Post for comparison to OASIS
+<div class="centerer">
+\(f(X_{i}(v)) \propto\) <img src="figure/Random_Forest.png" style="width:40%;inline;" alt="RF">
+
+For each model (RF with and w/o T1Post and OASIS retrained or not)
+
+- Estimate a probability cutoff on training data
+- Predict on test data, assess performance acrosss all voxels in the brain
+
+
+## Assessing Performance 
+For each test scan, and over all test scans, we can calculate the following 2-by-2 table, where cells represent number of voxels and corresponding Venn diagram:
+
+<div style="width:45%;float: left;">
+<table class = 'rmdtable' style='font-size: 26px;'>
+<tr class = "header"><td></td><td></td><td colspan="2">Manual</td></tr>
+<tr class = "header"><td></td><td></td><td>0</td><td>1</td></tr>
+<tr><td rowspan="2"> Auto</td><td>0</td><td style='font-size: 40px;'>TN</td><td style="color:blue">FN</td></tr>
+<tr><td>1</td><td style="color:red">FP</td><td style="color:purple">TP</td></tr>
+</table>
+<br>
+Dice Coeffiicent [@dice_measures_1945]:
+$$
+\text{Dice} = \frac{2\times\text{TP}}{2\times\text{TP} + \text{FN} + {FP}}
+$$
+</div>
+<div style="margin-left:48%;">
+<img src="figure/Venn_Diagram_labeled.png" style="width:80%; display: block; margin: auto;">
+</div>
+
+```{r plotter}
+o = overall %>% 
+  filter(smooth) %>% 
+  mutate(type = ifelse(
+    grepl("ranger", run_model),
+    "Random Forest", 
+    "OASIS")  
+  ) %>% 
+  filter(
+    run_model %in% c("oasis", "oasis_untrained", 
+                     "ranger", "ranger_nopost")) %>% 
+  mutate(
+    run_model = recode(run_model,
+                       oasis = "OASIS Trained",
+                       oasis_untrained = "OASIS",
+                       ranger_nopost = "RF, no T1Post",
+                       ranger = "RF")
+  )  
+transparent_legend =  theme(
+  legend.background = element_rect(
+    fill = "transparent"),
+  legend.key = element_rect(fill = "transparent", 
+                            color = "transparent") )
+g = results %>% 
+    ggplot(aes(x = run_model, 
+      y = dice, colour = type)) + 
+    facet_wrap(~ group) +
+    geom_boxplot() + 
+    theme(text = element_text(size = 20)) + 
+    theme(legend.position = c(0.7, 0.6)) +
+    ylab("Dice Coefficient") + xlab("") +
+    transparent_legend + 
+    guides(colour = guide_legend(title = "Model"))
+gg = g + 
+  geom_point(data = o,
+             position = position_dodge(width = 0.75),
+             shape = 2) +  coord_flip()  
+pngname = file.path("figure/run_dice_results.png")
+png(pngname, height = 5, width = 10, 
+  res = 600, units = "in")
+print(gg)
+dev.off()
+```
+
+<!-- ## Dice Results (Triangle is population Dice) <img src="figure/ranger_dice_results.png" style="width:55%;  display: block; margin: auto;" alt="Reseg"> -->
+
+## Dice Results (Triangle is population Dice) <img src="figure/run_dice_results.png" style="width:100%;  display: block; margin: auto;" alt="Reseg">
+## Patient with Median DSI (`r round(id$dice, 2)`) in Test
+
+<!-- <img src="figure/low_dice.gif" style="width:55%;  display: block; margin: auto;" alt="Median">  -->
+
+<div class="left-half">
+<img src="figure/patient28_image.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+<div class="right-half">
+<img src="figure/patient28_ranger_smoothed_phat.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+
+## Patient with High DSI (`r round(id_high$dice, 2)`) in Test
+
+<!-- <img src="figure/high_dice.gif" style="width:55%;  display: block; margin: auto;" alt="Median">  -->
+
+
+<div class="left-half">
+<img src="figure/patient04_image.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+<div class="right-half">
+<img src="figure/patient04_ranger_smoothed_phat.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+
+
+## 
+<div class="left-half">
+<img src="figure/varimp.png" style="width:110%;  display: block; margin: auto;" alt="varimp">
+</div>
+<div class="right-half">
+- Top predictors in RF model
+- T1Post not in there 
+- Tissue segmentations are important predictors
+    - FLAIR as well
+</div>
+
+
+
+
+## RF Predicted Volume Estimates True Volume <img src="figure/volume_results.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
+
+## OASIS: not so much <img src="figure/volume_results_oasis.png" style="width:90%;  display: block; margin: auto;" alt="Reseg">
+
+
+
+## Brain Stem Lesions Estimated
+
+<div class="left-half">
+<img src="figure/patient07_image.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+<div class="right-half">
+<img src="figure/patient07_ranger_smoothed_phat.png" style="width:100%;  display: block; margin: auto;" alt="Median">
+</div>
+
+
+## Conclusions of Lesion Analyses
+
+<div style="font-size: 24pt">
+
+- We can segment MS lesions reasonably well <br><br>
+- Better models with larger samples  <br/><br/>
+- Needs to be more stable/accurate for a biomarker 
+    - Location may also be relevant and not taken into account
+    - Is the brain stem an area we should focus on or remove from assessment?
+
+</div>
+
+
+## Next Steps/Questions
+
+<div style="font-size: 24pt">
+- Run new processing the 131 patients from OASIS paper 
+- Gray matter injury estimation
+- Is EDSS the clinical score we should be correlating with?
+- "Black hole" lesions using the T1-post image, these may show "active" lesions
+</div>
+
+
+
+## Thank You
+
